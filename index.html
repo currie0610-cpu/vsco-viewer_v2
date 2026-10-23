@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VSCO Media Viewer</title>
+    <style>
+        * { box-sizing: border-box; font-family: sans-serif; }
+        body { max-width: 600px; margin: 0 auto; padding: 20px; background: #f5f5f5; }
+        h1 { text-align: center; color: #333; }
+        .search-bar { display: flex; gap: 10px; margin-bottom: 25px; }
+        input { flex: 1; padding: 12px; font-size: 16px; border: 2px solid #ddd; border-radius: 8px; }
+        button { padding: 12px 24px; background: #000; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; }
+        button:disabled { background: #888; }
+        .status { margin: 15px 0; color: #555; }
+        .media-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 20px; }
+        .media-item { background: white; border-radius: 8px; overflow: hidden; padding: 10px; }
+        .media-item img { width: 100%; height: 150px; object-fit: cover; border-radius: 4px; }
+        .download-btn { width: 100%; margin-top: 8px; padding: 8px; background: #2563eb; font-size: 14px; }
+        .warning { background: #fff3cd; border-left: 4px solid #ffc107; padding: 12px; margin-bottom: 20px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <h1>📸 VSCO Media Viewer</h1>
+    
+    <div class="warning">
+        ⚠️ <strong>Please note:</strong> Only view/download content you have permission to use. 
+        This tool is for personal, non-commercial use only. Respect creators' rights.
+    </div>
+
+    <div class="search-bar">
+        <input type="text" id="username" placeholder="Enter VSCO username">
+        <button id="searchBtn">Search</button>
+    </div>
+
+    <div class="status" id="status"></div>
+    <div class="media-grid" id="mediaGrid"></div>
+
+    <script>
+        const searchBtn = document.getElementById('searchBtn');
+        const usernameInput = document.getElementById('username');
+        const status = document.getElementById('status');
+        const mediaGrid = document.getElementById('mediaGrid');
+
+        searchBtn.addEventListener('click', fetchUser);
+        usernameInput.addEventListener('keypress', e => e.key === 'Enter' && fetchUser());
+
+        async function fetchUser() {
+            const username = usernameInput.value.trim();
+            if (!username) return;
+
+            searchBtn.disabled = true;
+            mediaGrid.innerHTML = '';
+            status.textContent = '🔍 Searching...';
+
+            try {
+                // VSCO public profile endpoint (subject to change)
+                const profileUrl = `https://vsco.co/api/2.0/sites?subdomain=${username}`;
+                const profileRes = await fetch(profileUrl);
+                
+                if (!profileRes.ok) throw new Error('User not found or VSCO blocked the request');
+                
+                const profileData = await profileRes.json();
+                if (!profileData.sites || profileData.sites.length === 0) {
+                    throw new Error('Profile not found');
+                }
+
+                const siteId = profileData.sites[0].id;
+                status.textContent = `✅ Found user: ${username} — loading media...`;
+
+                // Fetch media items — limit to first 20 to respect server load
+                const mediaUrl = `https://vsco.co/api/2.0/medias?site_id=${siteId}&page=1&limit=20`;
+                const mediaRes = await fetch(mediaUrl);
+                
+                if (!mediaRes.ok) throw new Error('Could not load media');
+                
+                const mediaData = await mediaRes.json();
+                const media = mediaData.medias || [];
+
+                if (media.length === 0) {
+                    status.textContent = '📭 No public media found for this user';
+                    return;
+                }
+
+                status.textContent = `✅ Loaded ${media.length} items`;
+                
+                media.forEach(item => {
+                    const imgUrl = `https://${item.responsive_url}`;
+                    const itemEl = document.createElement('div');
+                    itemEl.className = 'media-item';
+                    itemEl.innerHTML = `
+                        <img src="${imgUrl}?w=300" alt="Media" loading="lazy">
+                        <a href="${imgUrl}" target="_blank" download class="download-btn">⬇ Open Image</a>
+                    `;
+                    mediaGrid.appendChild(itemEl);
+                });
+
+            } catch (err) {
+                status.textContent = `❌ Error: ${err.message}`;
+                status.style.color = '#dc2626';
+            } finally {
+                searchBtn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
